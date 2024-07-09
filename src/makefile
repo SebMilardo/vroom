@@ -24,7 +24,8 @@ SRC = $(wildcard *.cpp)\
 			$(wildcard ./structures/vroom/input/*.cpp)\
 			$(wildcard ./structures/vroom/solution/*.cpp)\
 			$(wildcard ./structures/*.cpp)\
-			$(wildcard ./utils/*.cpp)
+			$(wildcard ./utils/*.cpp)\
+			$(wildcard ../include/simdjson/singleheader/simdjson.cpp)
 
 # Remove routing if we don't require it
 ifeq ($(USE_ROUTING),false)

@@ -277,11 +277,13 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
       has_start_coords = true;
     } else if (key == "start_index") {
       start_index = member.value().get_uint64();
+      has_start_index = true;
     } else if (key == "end") {
       end_coordinates = parse_coordinates(json_vehicle, "end");
       has_end_coords = true;
     } else if (key == "end_index") {
       end_index = member.value().get_uint64();
+      has_end_index == true;
     } else if (key == "profile") {
       profile = get_string(json_vehicle, "profile");
       if (profile.empty()) {
@@ -327,12 +329,15 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   if (has_start_index) {
     // Custom provided matrices and index.
     if (has_start_coords) {
+      std::cout << "...." << std::endl; 
       start = Location({start_index, start_coordinates});
     } else {
+      std::cout << "....." << std::endl; 
       start = Location(start_index);
     }
   } else {
     if (has_start_coords) {
+      std::cout << "......." << std::endl; 
       start = Location(start_coordinates);
     }
   }
@@ -341,12 +346,15 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   if (has_end_index) {
     // Custom provided matrices and index.
     if (has_end_coords) {
+      std::cout << "." << std::endl; 
       end = Location({end_index, end_coordinates});
     } else {
+      std::cout << ".." << std::endl; 
       end = Location(end_index);
     }
   } else {
     if (has_end_coords) {
+      std::cout << "..." << std::endl; 
       end = Location(end_coordinates);
     }
   }
@@ -469,12 +477,7 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
              description);
 }
 
-template <class T> inline Matrix<T> get_matrix(simdjson::ondemand::value m) {
-  if (m.type() != simdjson::ondemand::json_type::array) {
-    throw InputException("Invalid matrix.");
-  }
-  simdjson::ondemand::array array = m.get_array();
-
+template <class T> inline Matrix<T> get_matrix(simdjson::ondemand::array array) {
   // Load custom matrix while checking if it is square.
   unsigned int matrix_size = array.count_elements();
 
@@ -557,27 +560,24 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         bool has_delivery_location_coords = false;
         bool has_delivery_location_index = false;
 
-        std::optional<Job> pickup_job;
-        std::optional<Job> delivery_job;
-
         for (auto member : shipment) {
           auto key = member.key().value();
           if (key == "pickup") {
             simdjson::ondemand::object pickup = member.value().get_object();
             for (auto submember : pickup) {
-              auto subkey = member.key().value();
+              auto subkey = submember.key().value();
               if (subkey == "id"){
-                pickup_id = member.value().get_uint64();
+                pickup_id = submember.value().get_uint64();
               } else if (subkey == "setup") {
                 pickup_setup = get_duration(pickup, "setup");
               } else if (subkey == "service") {
                 pickup_service = get_duration(pickup, "service");
               } else if (subkey == "time_windows") {
                 pickup_tws = get_time_windows(pickup);
-              } else if (key == "location_index") {
+              } else if (subkey == "location_index") {
                 has_pickup_location_index = true;
-                pickup_location_index = member.value().get_uint64();
-              } else if (key == "location") {
+                pickup_location_index = submember.value().get_uint64();
+              } else if (subkey == "location") {
                 has_pickup_location_coords = true;
                 pickup_location_coordinates = parse_coordinates(pickup, "location");
               } else if (subkey == "description") {
@@ -588,23 +588,23 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           } else if (key == "delivery") {
             simdjson::ondemand::object delivery = member.value().get_object();
             for (auto submember : delivery) {
-              auto subkey = member.key().value();
+              auto subkey = submember.key().value();
               if (subkey == "id"){
-                delivery_id = member.value().get_uint64();
+                delivery_id = submember.value().get_uint64();
               } else if (subkey == "setup") {
-                delivery_setup = get_duration(pickup, "setup");
+                delivery_setup = get_duration(delivery, "setup");
               } else if (subkey == "service") {
-                delivery_service = get_duration(pickup, "service");
+                delivery_service = get_duration(delivery, "service");
               } else if (subkey == "time_windows") {
-                delivery_tws = get_time_windows(pickup);
-              } else if (key == "location_index") {
+                delivery_tws = get_time_windows(delivery);
+              } else if (subkey == "location_index") {
                 has_delivery_location_index = true;
-                delivery_location_index = member.value().get_uint64();
-              } else if (key == "location") {
+                delivery_location_index = submember.value().get_uint64();
+              } else if (subkey == "location") {
                 has_delivery_location_coords = true;
-                delivery_location_coordinates = parse_coordinates(pickup, "location");
+                delivery_location_coordinates = parse_coordinates(delivery, "location");
               } else if (subkey == "description") {
-                delivery_description = get_string(pickup, "description");
+                delivery_description = get_string(delivery, "description");
               }
             }
           } else if (key == "amount") {
@@ -655,7 +655,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
                    pickup_tws,
                    pickup_description);
 
-        auto json_delivery = shipment["delivery"];
         Job delivery(delivery_id,
                      JOB_TYPE::DELIVERY,
                      delivery_location.value(),
@@ -691,10 +690,11 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           throw InputException("Error while parsing matrixes.");
         }
         if (key == "durations") {
-
+          input.set_durations_matrix("durations", get_matrix<UserDuration>(matrix.value().get_array()));
         } else if (key == "distances") {
-
+          input.set_distances_matrix("distance", get_matrix<UserDistance>(matrix.value().get_array()));
         } else if (key == "costs") {
+          input.set_costs_matrix("costs", get_matrix<UserCost>(matrix.value().get_array()));
         }
       }
     } else if (key == "matrix") {

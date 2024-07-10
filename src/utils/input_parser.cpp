@@ -517,7 +517,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
       throw InputException("Error while parsing.");
     }
     if (key == "jobs") {
-      std::cout << "JOBS:" << std::endl;
       simdjson::ondemand::array jobs;
       error = field.value().get_array().get(jobs);
       if (error) {
@@ -534,51 +533,150 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         throw InputException("Error while parsing shipments.");
       }
       for (simdjson::ondemand::object shipment : shipments) {
+        Amount amount((1));
+        Skills skills;
+        Priority priority = 0;
 
-        // Retrieve common stuff for both pickup and delivery.
-        auto amount = get_amount(shipment, "amount", 1);
-        auto skills = get_skills(shipment);
-        auto priority = get_priority(shipment);
+        uint64_t pickup_id;
+        Coordinates pickup_location_coordinates;
+        uint64_t pickup_location_index;
+        UserDuration pickup_setup = 0;
+        UserDuration pickup_service = 0;
+        std::vector<TimeWindow> pickup_tws = std::vector<TimeWindow>(1, TimeWindow());
+        std::string pickup_description;
+        bool has_pickup_location_coords = false;
+        bool has_pickup_location_index = false;
 
-        auto json_pickup = shipment["pickup"];
-        if (error) {
-          throw InputException("Error while parsing jobs.");
+        uint64_t delivery_id;
+        Coordinates delivery_location_coordinates;
+        uint64_t delivery_location_index;
+        UserDuration delivery_setup = 0;
+        UserDuration delivery_service = 0;
+        std::vector<TimeWindow> delivery_tws = std::vector<TimeWindow>(1, TimeWindow());
+        std::string delivery_description;
+        bool has_delivery_location_coords = false;
+        bool has_delivery_location_index = false;
+
+        std::optional<Job> pickup_job;
+        std::optional<Job> delivery_job;
+
+        for (auto member : shipment) {
+          auto key = member.key().value();
+          if (key == "pickup") {
+            simdjson::ondemand::object pickup = member.value().get_object();
+            for (auto submember : pickup) {
+              auto subkey = member.key().value();
+              if (subkey == "id"){
+                pickup_id = member.value().get_uint64();
+              } else if (subkey == "setup") {
+                pickup_setup = get_duration(pickup, "setup");
+              } else if (subkey == "service") {
+                pickup_service = get_duration(pickup, "service");
+              } else if (subkey == "time_windows") {
+                pickup_tws = get_time_windows(pickup);
+              } else if (key == "location_index") {
+                has_pickup_location_index = true;
+                pickup_location_index = member.value().get_uint64();
+              } else if (key == "location") {
+                has_pickup_location_coords = true;
+                pickup_location_coordinates = parse_coordinates(pickup, "location");
+              } else if (subkey == "description") {
+                pickup_description = get_string(pickup, "description");
+              }
+            }
+            
+          } else if (key == "delivery") {
+            simdjson::ondemand::object delivery = member.value().get_object();
+            for (auto submember : delivery) {
+              auto subkey = member.key().value();
+              if (subkey == "id"){
+                delivery_id = member.value().get_uint64();
+              } else if (subkey == "setup") {
+                delivery_setup = get_duration(pickup, "setup");
+              } else if (subkey == "service") {
+                delivery_service = get_duration(pickup, "service");
+              } else if (subkey == "time_windows") {
+                delivery_tws = get_time_windows(pickup);
+              } else if (key == "location_index") {
+                has_delivery_location_index = true;
+                delivery_location_index = member.value().get_uint64();
+              } else if (key == "location") {
+                has_delivery_location_coords = true;
+                delivery_location_coordinates = parse_coordinates(pickup, "location");
+              } else if (subkey == "description") {
+                delivery_description = get_string(pickup, "description");
+              }
+            }
+          } else if (key == "amount") {
+            amount = get_amount(shipment, "amount", 1);
+          } else if (key == "skills") {
+            skills = get_skills(shipment);
+          } else if (key == "priority") {
+            priority = get_priority(shipment);
+          }
         }
-        Job pickup(Id(json_pickup["id"].get_uint64()),
+
+          std::optional<Location> delivery_location;
+          if (has_delivery_location_index) {
+            // Custom provided matrices and index.
+            if (has_delivery_location_coords) {
+              delivery_location = Location({delivery_location_index, delivery_location_coordinates});
+            } else {
+              delivery_location = Location(delivery_location_index);
+            }
+          } else {
+            if (has_delivery_location_coords) {
+              delivery_location = Location(delivery_location_coordinates);
+            }
+          }
+
+          std::optional<Location> pickup_location;
+          if (has_pickup_location_index) {
+            // Custom provided matrices and index.
+            if (has_pickup_location_coords) {
+              pickup_location = Location({pickup_location_index, pickup_location_coordinates});
+            } else {
+              pickup_location = Location(pickup_location_index);
+            }
+          } else {
+            if (has_pickup_location_coords) {
+              pickup_location = Location(pickup_location_coordinates);
+            }
+          }
+        
+        Job pickup(pickup_id,
                    JOB_TYPE::PICKUP,
-                   get_task_location(json_pickup, "pickup"),
-                   get_duration(json_pickup, "setup"),
-                   get_duration(json_pickup, "service"),
+                   pickup_location.value(),
+                   pickup_setup,
+                   pickup_service,
                    amount,
                    skills,
                    priority,
-                   get_time_windows(json_pickup),
-                   get_string(json_pickup, "description"));
+                   pickup_tws,
+                   pickup_description);
 
         auto json_delivery = shipment["delivery"];
-        Job delivery(Id(json_delivery["id"].get_uint64()),
+        Job delivery(delivery_id,
                      JOB_TYPE::DELIVERY,
-                     get_task_location(json_delivery, "delivery"),
-                     get_duration(json_delivery, "setup"),
-                     get_duration(json_delivery, "service"),
+                     delivery_location.value(),
+                     delivery_setup,
+                     delivery_service,
                      amount,
                      skills,
                      priority,
-                     get_time_windows(json_delivery),
-                     get_string(json_delivery, "description"));
+                     delivery_tws,
+                     delivery_description);
 
         input.add_shipment(pickup, delivery);
       }
     } else if (key == "vehicles") {
-      std::cout << "VEHICLES:" << std::endl;
       simdjson::ondemand::array vehicles;
       error = field.value().get_array().get(vehicles);
       if (error) {
         throw InputException("Error while parsing vehicles.");
       }
       for (simdjson::ondemand::object vehicle : vehicles) {
-        input.add_vehicle(
-          get_vehicle(vehicle, 1)); // get_vehicle_steps(json_vehicle)));
+        input.add_vehicle(get_vehicle(vehicle, 1));
       }
     } else if (key == "matrices") {
       std::cout << "MATRICES:" << std::endl;

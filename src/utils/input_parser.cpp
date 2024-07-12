@@ -698,7 +698,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         input.add_vehicle(get_vehicle(vehicle, 1));
       }
     } else if (key == "matrices") {
-      std::cout << "MATRICES:" << std::endl;
       simdjson::ondemand::object matrices;
       error = field.value().get_object().get(matrices);
       if (error) {
@@ -724,13 +723,16 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         }
       }
     } else if (key == "matrix") {
+      // Deprecated `matrix` key still interpreted as
+      // `matrices.DEFAULT_PROFILE.duration` for retro-compatibility.
       simdjson::ondemand::array array;
       error = field.value().get_array().get(array);
       if (error) {
         throw InputException("Error while parsing matrix.");
       }
-      for (simdjson::ondemand::array row : array) {
-      }
+      input.set_durations_matrix(DEFAULT_PROFILE,
+                                 get_matrix<UserDuration>(
+                                 array));
     }
   }
   exit(0);

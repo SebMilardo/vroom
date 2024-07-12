@@ -25,53 +25,45 @@ HasMember(simdjson::ondemand::object object, const char* key) {
 }
 
 // Helper to get optional array of coordinates.
-inline Coordinates parse_coordinates(simdjson::ondemand::object object,
+inline Coordinates parse_coordinates(simdjson::ondemand::value object,
                                      const char* key) {
-  auto member = HasMember(object, key);
-  if (member) {
-    try {
-      simdjson::ondemand::array array = member.value().get_array();
-      return {array.at(0).get_double(), array.at(1).get_double()};
-    } catch (const std::exception& e) {
-      throw InputException("Invalid " + std::string(key) + " array.");
-    }
+  try {
+    simdjson::ondemand::array array = object.get_array();
+    return {array.at(0).get_double(), array.at(1).get_double()};
+  } catch (const std::exception& e) {
+    throw InputException("Invalid " + std::string(key) + " array.");
   }
 }
 
-inline std::string get_string(simdjson::ondemand::object object,
+inline std::string get_string(simdjson::ondemand::value json_value,
                               const char* key) {
   std::string value;
-  auto member = HasMember(object, key);
-  if (member) {
-    try {
-      member.value().get_string(value);
-    } catch (const std::exception& e) {
-      throw InputException("Invalid " + std::string(key) + " value.");
-    }
+  try {
+    json_value.get_string(value);
+  } catch (const std::exception& e) {
+    throw InputException("Invalid " + std::string(key) + " value.");
   }
   return value;
 }
 
-inline double get_double(simdjson::ondemand::object object, const char* key) {
+inline double get_double(simdjson::ondemand::value json_value,
+                         const char* key) {
   double value = 1.;
-  auto member = HasMember(object, key);
-  if (member) {
-    try {
-      value = member.value().get_double();
-    } catch (const std::exception& e) {
-      throw InputException("Invalid " + std::string(key) + " value.");
-    }
+  try {
+    value = json_value.get_double();
+  } catch (const std::exception& e) {
+    throw InputException("Invalid " + std::string(key) + " value.");
   }
   return value;
 }
 
-inline Amount get_amount(simdjson::ondemand::object object,
+inline Amount get_amount(simdjson::ondemand::value json_value,
                          const char* key,
                          unsigned amount_size) {
   // Default to zero amount with provided size.
   Amount amount(amount_size);
   try {
-    simdjson::ondemand::array array = object[key].value().get_array();
+    simdjson::ondemand::array array = json_value.get_array();
     uint array_size = array.count_elements();
     if (array_size != amount_size) {
       throw InputException(std::format("Inconsistent {} length: {} and {}.",
@@ -93,66 +85,54 @@ inline Amount get_amount(simdjson::ondemand::object object,
   return amount;
 }
 
-inline Skills get_skills(simdjson::ondemand::object object) {
+inline Skills get_skills(simdjson::ondemand::value json_value) {
   Skills skills;
-  auto member = HasMember(object, "skills");
-  if (member) {
-    try {
-      simdjson::ondemand::array array = member.value().get_array();
+  try {
+    simdjson::ondemand::array array = json_value.get_array();
 
-      for (auto skill : array) {
-        try {
-          skills.insert(skill.get_uint64());
-        } catch (const std::exception& e) {
-          throw InputException("Invalid skill value.");
-        }
+    for (auto skill : array) {
+      try {
+        skills.insert(skill.get_uint64());
+      } catch (const std::exception& e) {
+        throw InputException("Invalid skill value.");
       }
-
-    } catch (const std::exception& e) {
-      throw InputException("Invalid skills object.");
     }
+
+  } catch (const std::exception& e) {
+    throw InputException("Invalid skills object.");
   }
   return skills;
 }
 
-inline UserDuration get_duration(simdjson::ondemand::object object,
+inline UserDuration get_duration(simdjson::ondemand::value json_value,
                                  const char* key) {
   UserDuration duration = 0;
-  auto member = HasMember(object, key);
-  if (member) {
-    try {
-      duration = member.value().get_uint64();
-    } catch (const std::exception& e) {
-      throw InputException("Invalid " + std::string(key) + " duration.");
-    }
+  try {
+    duration = json_value.get_uint64();
+  } catch (const std::exception& e) {
+    throw InputException("Invalid " + std::string(key) + " duration.");
   }
   return duration;
 }
 
-inline Priority get_priority(simdjson::ondemand::object object) {
+inline Priority get_priority(simdjson::ondemand::value json_value) {
   Priority priority = 0;
-  auto member = HasMember(object, "priority");
-  if (member) {
-    try {
-      priority = member.value().get_uint64();
-    } catch (const std::exception& e) {
-      throw InputException("Invalid priority value.");
-    }
+  try {
+    priority = json_value.get_uint64();
+  } catch (const std::exception& e) {
+    throw InputException("Invalid priority value.");
   }
   return priority;
 }
 
 template <typename T>
-inline std::optional<T> get_value_for(simdjson::ondemand::object object,
+inline std::optional<T> get_value_for(simdjson::ondemand::value json_value,
                                       const char* key) {
   std::optional<T> value;
-  auto member = HasMember(object, key);
-  if (member) {
-    try {
-      value = member.value().get_uint64();
-    } catch (const std::exception& e) {
-      throw InputException("Invalid " + std::string(key) + " value.");
-    }
+  try {
+    value = json_value.get_uint64();
+  } catch (const std::exception& e) {
+    throw InputException("Invalid " + std::string(key) + " value.");
   }
   return value;
 }
@@ -179,19 +159,10 @@ inline TimeWindow get_time_window(simdjson::ondemand::value tw) {
   }
 }
 
-inline TimeWindow get_vehicle_time_window(simdjson::ondemand::object v) {
-  TimeWindow v_tw;
-  auto member = HasMember(v, "time_window");
-  if (member) {
-    v_tw = get_time_window(member.value());
-  }
-  return v_tw;
-}
-
-inline std::vector<TimeWindow> get_time_windows(simdjson::ondemand::object o) {
+inline std::vector<TimeWindow> get_time_windows(simdjson::ondemand::value o) {
   std::vector<TimeWindow> tws;
   simdjson::ondemand::array array;
-  auto error = o["time_windows"].get_array().get(array);
+  auto error = o.get_array().get(array);
   if (error || (array.begin() == array.end())) {
     throw InputException(
       std::format("Invalid time_windows array for object {}.",
@@ -205,18 +176,31 @@ inline std::vector<TimeWindow> get_time_windows(simdjson::ondemand::object o) {
   return tws;
 }
 
-inline Break get_break(simdjson::ondemand::object b, unsigned amount_size) {
-  check_id(b, "break");
+inline Break get_break(simdjson::ondemand::object o, unsigned amount_size) {
+  std::optional<Amount> max_load;
+  uint64_t b_id;
+  std::vector<TimeWindow> tws;
+  UserDuration service;
+  std::string description;
 
-  const auto max_load = HasMember(b, "max_load")
-                          ? get_amount(b, "max_load", amount_size)
-                          : std::optional<Amount>();
+  for (auto member : o) {
+    auto key = member.key().value();
+    auto value = member.value().value();
 
-  return Break(b["id"].get_uint64(),
-               get_time_windows(b),
-               get_duration(b, "service"),
-               get_string(b, "description"),
-               max_load);
+    if (key == "max_load") {
+      max_load = get_amount(value, "max_load", amount_size);
+    } else if (key == "id") {
+      b_id = value.get_uint64();
+    } else if (key == "time_windows") {
+      tws = get_time_windows(value);
+    } else if (key == "service") {
+      service = get_duration(value, "service");
+    } else if (key == "description") {
+      description = get_string(value, "description");
+    }
+  }
+
+  return Break(b_id, tws, service, description, max_load);
 }
 
 inline std::vector<Break> get_vehicle_breaks(simdjson::ondemand::object v,
@@ -240,6 +224,61 @@ inline std::vector<Break> get_vehicle_breaks(simdjson::ondemand::object v,
   });
 
   return breaks;
+}
+
+inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
+                                                  uint64_t v_id) {
+  std::vector<VehicleStep> steps;
+  simdjson::ondemand::array array = v.get_array();
+
+  steps.reserve(array.count_elements());
+
+  for (auto a : array) {
+    std::optional<UserDuration> at;
+    std::optional<UserDuration> after;
+    std::optional<UserDuration> before;
+    std::string type_str;
+    uint64_t s_id;
+
+    auto step = a.get_object();
+    for (auto member : step) {
+      auto key = member.key().value();
+      auto value = member.value().value();
+
+      if (key == "service_at") {
+        at = value.get_uint64();
+      } else if (key == "service_after") {
+        after = value.get_uint64();
+      } else if (key == "service_before") {
+        before = value.get_uint64();
+      } else if (key == "type") {
+        type_str = get_string(value, "type");
+      } else if (key == "id") {
+        s_id = value.get_uint64();
+      }
+    }
+
+    ForcedService forced_service(at, after, before);
+
+    if (type_str == "start") {
+      steps.emplace_back(STEP_TYPE::START, std::move(forced_service));
+    } else if (type_str == "end") {
+      steps.emplace_back(STEP_TYPE::END, std::move(forced_service));
+    } else if (type_str == "job") {
+      steps.emplace_back(JOB_TYPE::SINGLE, s_id, std::move(forced_service));
+    } else if (type_str == "pickup") {
+      steps.emplace_back(JOB_TYPE::PICKUP, s_id, std::move(forced_service));
+    } else if (type_str == "delivery") {
+      steps.emplace_back(JOB_TYPE::DELIVERY, s_id, std::move(forced_service));
+    } else if (type_str == "break") {
+      steps.emplace_back(STEP_TYPE::BREAK, s_id, std::move(forced_service));
+    } else {
+      throw InputException(
+        std::format("Invalid type in steps for vehicle {}.", v_id));
+    }
+  }
+
+  return steps;
 }
 
 inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
@@ -270,58 +309,58 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
 
   for (auto member : json_vehicle) {
     auto key = member.key().value();
+    auto value = member.value().value();
     if (key == "id") {
-      v_id = member.value().get_uint64();
+      v_id = value.get_uint64();
     } else if (key == "start") {
-      start_coordinates = parse_coordinates(json_vehicle, "start");
+      start_coordinates = parse_coordinates(value, "start");
       has_start_coords = true;
     } else if (key == "start_index") {
-      start_index = member.value().get_uint64();
+      start_index = value.get_uint64();
       has_start_index = true;
     } else if (key == "end") {
-      end_coordinates = parse_coordinates(json_vehicle, "end");
+      end_coordinates = parse_coordinates(value, "end");
       has_end_coords = true;
     } else if (key == "end_index") {
-      end_index = member.value().get_uint64();
-      has_end_index == true;
+      end_index = value.get_uint64();
+      has_end_index = true;
     } else if (key == "profile") {
-      profile = get_string(json_vehicle, "profile");
+      profile = get_string(value, "profile");
       if (profile.empty()) {
         profile = DEFAULT_PROFILE;
       }
     } else if (key == "capacity") {
-      capacity = get_amount(json_vehicle, "capacity", amount_size);
+      capacity = get_amount(value, "capacity", amount_size);
     } else if (key == "skills") {
-      skills = get_skills(json_vehicle);
+      skills = get_skills(value);
     } else if (key == "tw") {
-      tw = get_vehicle_time_window(json_vehicle);
+      tw = get_time_window(value);
     } else if (key == "breaks") {
       breaks = get_vehicle_breaks(json_vehicle, amount_size);
     } else if (key == "description") {
-      description = get_string(json_vehicle, "description");
+      description = get_string(value, "description");
     } else if (key == "cost") {
-      for (auto costs : member.value().get_object()) {
-        if (costs.key() == "fixed") {
-          fixed = member.value().get_uint64();
+      for (auto cost : value.get_object()) {
+        if (cost.key() == "fixed") {
+          fixed = cost.value().get_uint64();
         }
-        if (costs.key() == "per_hour") {
-          per_hour = member.value().get_uint64();
+        if (cost.key() == "per_hour") {
+          per_hour = cost.value().get_uint64();
         }
-        if (costs.key() == "per_km") {
-          per_km = member.value().get_uint64();
+        if (cost.key() == "per_km") {
+          per_km = cost.value().get_uint64();
         }
       }
     } else if (key == "speed_factor") {
-      speed_factor = get_double(json_vehicle, "speed_factor");
+      speed_factor = get_double(value, "speed_factor");
     } else if (key == "max_tasks") {
-      max_tasks = get_value_for<size_t>(json_vehicle, "max_tasks");
+      max_tasks = get_value_for<size_t>(value, "max_tasks");
     } else if (key == "max_travel_time") {
-      max_travel_time =
-        get_value_for<UserDuration>(json_vehicle, "max_travel_time");
+      max_travel_time = get_value_for<UserDuration>(value, "max_travel_time");
     } else if (key == "max_distance") {
-      max_distance = get_value_for<UserDistance>(json_vehicle, "max_distance");
+      max_distance = get_value_for<UserDistance>(value, "max_distance");
     } else if (key == "steps") {
-      steps = std::vector<VehicleStep>(); // get_vehicle_steps(json_vehicle)
+      steps = get_vehicle_steps(value, v_id);
     }
   }
 
@@ -329,15 +368,12 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   if (has_start_index) {
     // Custom provided matrices and index.
     if (has_start_coords) {
-      std::cout << "...." << std::endl; 
       start = Location({start_index, start_coordinates});
     } else {
-      std::cout << "....." << std::endl; 
       start = Location(start_index);
     }
   } else {
     if (has_start_coords) {
-      std::cout << "......." << std::endl; 
       start = Location(start_coordinates);
     }
   }
@@ -346,15 +382,12 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   if (has_end_index) {
     // Custom provided matrices and index.
     if (has_end_coords) {
-      std::cout << "." << std::endl; 
       end = Location({end_index, end_coordinates});
     } else {
-      std::cout << ".." << std::endl; 
       end = Location(end_index);
     }
   } else {
     if (has_end_coords) {
-      std::cout << "..." << std::endl; 
       end = Location(end_coordinates);
     }
   }
@@ -373,32 +406,7 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
                  max_tasks,
                  max_travel_time,
                  max_distance,
-                 steps // get_vehicle_steps(json_vehicle)
-  );
-}
-
-inline Location get_task_location(simdjson::ondemand::object v,
-                                  const std::string& type) {
-  // Check what info are available to build task location.
-  auto has_location_coords = HasMember(v, "location");
-  auto has_location_index = HasMember(v, "location_index");
-  if (has_location_index && has_location_index.value().type() !=
-                              simdjson::ondemand::json_type::number) {
-    throw InputException(std::format("Invalid location_index for {} {}.",
-                                     type,
-                                     v["id"].get_uint64().value()));
-  }
-
-  if (has_location_index) {
-    // Custom provided matrices and index.
-    Index location_index = has_location_index.value().get_uint64();
-    if (has_location_coords) {
-      return Location({location_index, parse_coordinates(v, "location")});
-    }
-    return Location(location_index);
-  }
-  // check_location(v, type);
-  return Location(parse_coordinates(v, "location"));
+                 steps);
 }
 
 inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
@@ -422,6 +430,8 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
 
   for (auto member : json_job) {
     auto key = member.key().value();
+    auto value = member.value().value();
+
     if (key == "id") {
       v_id = member.value().get_uint64();
     } else if (key == "location_index") {
@@ -429,25 +439,25 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
       location_index = member.value().get_uint64();
     } else if (key == "location") {
       has_location_coords = true;
-      location_coordinates = parse_coordinates(json_job, "location");
+      location_coordinates = parse_coordinates(value, "location");
     } else if (key == "setup") {
-      setup = get_duration(json_job, "setup");
+      setup = get_duration(value, "setup");
     } else if (key == "service") {
-      service = get_duration(json_job, "service");
+      service = get_duration(value, "service");
     } else if (key == "delivery") {
-      delivery = get_amount(json_job, "delivery", amount_size);
+      delivery = get_amount(value, "delivery", amount_size);
     } else if (key == "amount") {
-      delivery = get_amount(json_job, "amount", amount_size);
+      delivery = get_amount(value, "amount", amount_size);
     } else if (key == "pickup") {
-      pickup = get_amount(json_job, "pickup", amount_size);
+      pickup = get_amount(value, "pickup", amount_size);
     } else if (key == "skills") {
-      skills = get_skills(json_job);
+      skills = get_skills(value);
     } else if (key == "priority") {
-      priority = get_priority(json_job);
+      priority = get_priority(value);
     } else if (key == "time_windows") {
-      tws = get_time_windows(json_job);
+      tws = get_time_windows(value);
     } else if (key == "description") {
-      description = get_string(json_job, "description");
+      description = get_string(value, "description");
     }
   }
 
@@ -477,7 +487,8 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
              description);
 }
 
-template <class T> inline Matrix<T> get_matrix(simdjson::ondemand::array array) {
+template <class T>
+inline Matrix<T> get_matrix(simdjson::ondemand::array array) {
   // Load custom matrix while checking if it is square.
   unsigned int matrix_size = array.count_elements();
 
@@ -545,7 +556,8 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         uint64_t pickup_location_index;
         UserDuration pickup_setup = 0;
         UserDuration pickup_service = 0;
-        std::vector<TimeWindow> pickup_tws = std::vector<TimeWindow>(1, TimeWindow());
+        std::vector<TimeWindow> pickup_tws =
+          std::vector<TimeWindow>(1, TimeWindow());
         std::string pickup_description;
         bool has_pickup_location_coords = false;
         bool has_pickup_location_index = false;
@@ -555,95 +567,103 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         uint64_t delivery_location_index;
         UserDuration delivery_setup = 0;
         UserDuration delivery_service = 0;
-        std::vector<TimeWindow> delivery_tws = std::vector<TimeWindow>(1, TimeWindow());
+        std::vector<TimeWindow> delivery_tws =
+          std::vector<TimeWindow>(1, TimeWindow());
         std::string delivery_description;
         bool has_delivery_location_coords = false;
         bool has_delivery_location_index = false;
 
         for (auto member : shipment) {
           auto key = member.key().value();
+          auto value = member.value().value();
           if (key == "pickup") {
             simdjson::ondemand::object pickup = member.value().get_object();
             for (auto submember : pickup) {
               auto subkey = submember.key().value();
-              if (subkey == "id"){
-                pickup_id = submember.value().get_uint64();
+              auto subvalue = submember.value().value();
+              if (subkey == "id") {
+                pickup_id = subvalue.get_uint64();
               } else if (subkey == "setup") {
-                pickup_setup = get_duration(pickup, "setup");
+                pickup_setup = get_duration(subvalue, "setup");
               } else if (subkey == "service") {
-                pickup_service = get_duration(pickup, "service");
+                pickup_service = get_duration(subvalue, "service");
               } else if (subkey == "time_windows") {
-                pickup_tws = get_time_windows(pickup);
+                pickup_tws = get_time_windows(subvalue);
               } else if (subkey == "location_index") {
                 has_pickup_location_index = true;
-                pickup_location_index = submember.value().get_uint64();
+                pickup_location_index = subvalue.get_uint64();
               } else if (subkey == "location") {
                 has_pickup_location_coords = true;
-                pickup_location_coordinates = parse_coordinates(pickup, "location");
+                pickup_location_coordinates =
+                  parse_coordinates(subvalue, "location");
               } else if (subkey == "description") {
-                pickup_description = get_string(pickup, "description");
+                pickup_description = get_string(subvalue, "description");
               }
             }
-            
+
           } else if (key == "delivery") {
             simdjson::ondemand::object delivery = member.value().get_object();
             for (auto submember : delivery) {
               auto subkey = submember.key().value();
-              if (subkey == "id"){
-                delivery_id = submember.value().get_uint64();
+              auto subvalue = submember.value().value();
+              if (subkey == "id") {
+                delivery_id = subvalue.get_uint64();
               } else if (subkey == "setup") {
-                delivery_setup = get_duration(delivery, "setup");
+                delivery_setup = get_duration(subvalue, "setup");
               } else if (subkey == "service") {
-                delivery_service = get_duration(delivery, "service");
+                delivery_service = get_duration(subvalue, "service");
               } else if (subkey == "time_windows") {
-                delivery_tws = get_time_windows(delivery);
+                delivery_tws = get_time_windows(subvalue);
               } else if (subkey == "location_index") {
                 has_delivery_location_index = true;
-                delivery_location_index = submember.value().get_uint64();
+                delivery_location_index = subvalue.get_uint64();
               } else if (subkey == "location") {
                 has_delivery_location_coords = true;
-                delivery_location_coordinates = parse_coordinates(delivery, "location");
+                delivery_location_coordinates =
+                  parse_coordinates(subvalue, "location");
               } else if (subkey == "description") {
-                delivery_description = get_string(delivery, "description");
+                delivery_description = get_string(subvalue, "description");
               }
             }
           } else if (key == "amount") {
-            amount = get_amount(shipment, "amount", 1);
+            amount = get_amount(value, "amount", 1);
           } else if (key == "skills") {
-            skills = get_skills(shipment);
+            skills = get_skills(value);
           } else if (key == "priority") {
-            priority = get_priority(shipment);
+            priority = get_priority(value);
           }
         }
 
-          std::optional<Location> delivery_location;
-          if (has_delivery_location_index) {
-            // Custom provided matrices and index.
-            if (has_delivery_location_coords) {
-              delivery_location = Location({delivery_location_index, delivery_location_coordinates});
-            } else {
-              delivery_location = Location(delivery_location_index);
-            }
+        std::optional<Location> delivery_location;
+        if (has_delivery_location_index) {
+          // Custom provided matrices and index.
+          if (has_delivery_location_coords) {
+            delivery_location = Location(
+              {delivery_location_index, delivery_location_coordinates});
           } else {
-            if (has_delivery_location_coords) {
-              delivery_location = Location(delivery_location_coordinates);
-            }
+            delivery_location = Location(delivery_location_index);
           }
+        } else {
+          if (has_delivery_location_coords) {
+            delivery_location = Location(delivery_location_coordinates);
+          }
+        }
 
-          std::optional<Location> pickup_location;
-          if (has_pickup_location_index) {
-            // Custom provided matrices and index.
-            if (has_pickup_location_coords) {
-              pickup_location = Location({pickup_location_index, pickup_location_coordinates});
-            } else {
-              pickup_location = Location(pickup_location_index);
-            }
+        std::optional<Location> pickup_location;
+        if (has_pickup_location_index) {
+          // Custom provided matrices and index.
+          if (has_pickup_location_coords) {
+            pickup_location =
+              Location({pickup_location_index, pickup_location_coordinates});
           } else {
-            if (has_pickup_location_coords) {
-              pickup_location = Location(pickup_location_coordinates);
-            }
+            pickup_location = Location(pickup_location_index);
           }
-        
+        } else {
+          if (has_pickup_location_coords) {
+            pickup_location = Location(pickup_location_coordinates);
+          }
+        }
+
         Job pickup(pickup_id,
                    JOB_TYPE::PICKUP,
                    pickup_location.value(),
@@ -690,11 +710,17 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           throw InputException("Error while parsing matrixes.");
         }
         if (key == "durations") {
-          input.set_durations_matrix("durations", get_matrix<UserDuration>(matrix.value().get_array()));
+          input.set_durations_matrix("durations",
+                                     get_matrix<UserDuration>(
+                                       matrix.value().get_array()));
         } else if (key == "distances") {
-          input.set_distances_matrix("distance", get_matrix<UserDistance>(matrix.value().get_array()));
+          input.set_distances_matrix("distance",
+                                     get_matrix<UserDistance>(
+                                       matrix.value().get_array()));
         } else if (key == "costs") {
-          input.set_costs_matrix("costs", get_matrix<UserCost>(matrix.value().get_array()));
+          input.set_costs_matrix("costs",
+                                 get_matrix<UserCost>(
+                                   matrix.value().get_array()));
         }
       }
     } else if (key == "matrix") {

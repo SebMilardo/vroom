@@ -255,13 +255,32 @@ inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
   return steps;
 }
 
+inline std::optional<Location> get_location(const std::optional<Coordinates>& coordinates,
+                                            const std::optional<uint64_t>& index) {
+  std::optional<Location> location;
+  if (index) {
+    // Custom provided matrices and index.
+    if (coordinates) {
+      location = Location({index.value(), coordinates.value()});
+    } else {
+      location = Location(index.value());
+    }
+  } else {
+    if (coordinates) {
+      location = Location(coordinates.value());
+    }
+  }
+  return location;
+}
+
+
 inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
                            unsigned amount_size) {
   uint64_t v_id;
-  Coordinates start_coordinates;
-  uint64_t start_index;
-  Coordinates end_coordinates;
-  uint64_t end_index;
+  std::optional<Coordinates> start_coordinates;
+  std::optional<uint64_t> start_index;
+  std::optional<Coordinates> end_coordinates;
+  std::optional<uint64_t> end_index;
   std::string profile = DEFAULT_PROFILE;
   Amount capacity(amount_size);
   Skills skills;
@@ -273,10 +292,6 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   std::optional<UserDuration> max_travel_time;
   std::optional<UserDuration> max_distance;
   std::vector<VehicleStep> steps;
-  bool has_start_coords = false;
-  bool has_end_coords = false;
-  bool has_start_index = false;
-  bool has_end_index = false;
   UserCost fixed = 0;
   UserCost per_hour = DEFAULT_COST_PER_HOUR;
   UserCost per_km = DEFAULT_COST_PER_KM;
@@ -288,16 +303,12 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
       v_id = value.get_uint64();
     } else if (key == "start") {
       start_coordinates = parse_coordinates(value, "start");
-      has_start_coords = true;
     } else if (key == "start_index") {
       start_index = value.get_uint64();
-      has_start_index = true;
     } else if (key == "end") {
       end_coordinates = parse_coordinates(value, "end");
-      has_end_coords = true;
     } else if (key == "end_index") {
       end_index = value.get_uint64();
-      has_end_index = true;
     } else if (key == "profile") {
       profile = get_string(value, "profile");
     } else if (key == "capacity") {
@@ -335,33 +346,8 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
     }
   }
 
-  std::optional<Location> start;
-  if (has_start_index) {
-    // Custom provided matrices and index.
-    if (has_start_coords) {
-      start = Location({start_index, start_coordinates});
-    } else {
-      start = Location(start_index);
-    }
-  } else {
-    if (has_start_coords) {
-      start = Location(start_coordinates);
-    }
-  }
-
-  std::optional<Location> end;
-  if (has_end_index) {
-    // Custom provided matrices and index.
-    if (has_end_coords) {
-      end = Location({end_index, end_coordinates});
-    } else {
-      end = Location(end_index);
-    }
-  } else {
-    if (has_end_coords) {
-      end = Location(end_coordinates);
-    }
-  }
+  std::optional<Location> start = get_location(start_coordinates, start_index);
+  std::optional<Location> end = get_location(end_coordinates, end_index);
 
   return Vehicle(v_id,
                  start,
@@ -386,8 +372,8 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
   // interpreted as a delivery.
 
   uint64_t v_id;
-  Coordinates location_coordinates;
-  uint64_t location_index;
+  std::optional<Coordinates> location_coordinates;
+  std::optional<uint64_t> location_index;
   UserDuration setup = 0;
   UserDuration service = 0;
   Amount delivery(amount_size);
@@ -396,9 +382,7 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
   Priority priority = 0;
   std::vector<TimeWindow> tws = std::vector<TimeWindow>(1, TimeWindow());
   std::string description;
-  bool has_location_coords = false;
-  bool has_location_index = false;
-
+  
   for (auto member : json_job) {
     auto key = member.key().value();
     auto value = member.value().value();
@@ -406,10 +390,8 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
     if (key == "id") {
       v_id = member.value().get_uint64();
     } else if (key == "location_index") {
-      has_location_index = true;
       location_index = member.value().get_uint64();
     } else if (key == "location") {
-      has_location_coords = true;
       location_coordinates = parse_coordinates(value, "location");
     } else if (key == "setup") {
       setup = get_duration(value, "setup");
@@ -432,19 +414,7 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
     }
   }
 
-  std::optional<Location> location;
-  if (has_location_index) {
-    // Custom provided matrices and index.
-    if (has_location_coords) {
-      location = Location({location_index, location_coordinates});
-    } else {
-      location = Location(location_index);
-    }
-  } else {
-    if (has_location_coords) {
-      location = Location(location_coordinates);
-    }
-  }
+  std::optional<Location> location = get_location(location_coordinates, location_index);
 
   return Job(v_id,
              location.value(),
@@ -531,26 +501,22 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         Priority priority = 0;
 
         uint64_t pickup_id;
-        Coordinates pickup_location_coordinates;
-        uint64_t pickup_location_index;
+        std::optional<Coordinates> pickup_location_coordinates;
+        std::optional<uint64_t> pickup_location_index;
         UserDuration pickup_setup = 0;
         UserDuration pickup_service = 0;
         std::vector<TimeWindow> pickup_tws =
           std::vector<TimeWindow>(1, TimeWindow());
         std::string pickup_description;
-        bool has_pickup_location_coords = false;
-        bool has_pickup_location_index = false;
 
         uint64_t delivery_id;
-        Coordinates delivery_location_coordinates;
-        uint64_t delivery_location_index;
+        std::optional<Coordinates> delivery_location_coordinates;
+        std::optional<uint64_t> delivery_location_index;
         UserDuration delivery_setup = 0;
         UserDuration delivery_service = 0;
         std::vector<TimeWindow> delivery_tws =
           std::vector<TimeWindow>(1, TimeWindow());
         std::string delivery_description;
-        bool has_delivery_location_coords = false;
-        bool has_delivery_location_index = false;
 
         for (auto member : shipment) {
           auto key = member.key().value();
@@ -569,10 +535,8 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
               } else if (subkey == "time_windows") {
                 pickup_tws = get_time_windows(subvalue);
               } else if (subkey == "location_index") {
-                has_pickup_location_index = true;
                 pickup_location_index = subvalue.get_uint64();
               } else if (subkey == "location") {
-                has_pickup_location_coords = true;
                 pickup_location_coordinates =
                   parse_coordinates(subvalue, "location");
               } else if (subkey == "description") {
@@ -594,10 +558,8 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
               } else if (subkey == "time_windows") {
                 delivery_tws = get_time_windows(subvalue);
               } else if (subkey == "location_index") {
-                has_delivery_location_index = true;
                 delivery_location_index = subvalue.get_uint64();
               } else if (subkey == "location") {
-                has_delivery_location_coords = true;
                 delivery_location_coordinates =
                   parse_coordinates(subvalue, "location");
               } else if (subkey == "description") {
@@ -613,35 +575,8 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           }
         }
 
-        std::optional<Location> delivery_location;
-        if (has_delivery_location_index) {
-          // Custom provided matrices and index.
-          if (has_delivery_location_coords) {
-            delivery_location = Location(
-              {delivery_location_index, delivery_location_coordinates});
-          } else {
-            delivery_location = Location(delivery_location_index);
-          }
-        } else {
-          if (has_delivery_location_coords) {
-            delivery_location = Location(delivery_location_coordinates);
-          }
-        }
-
-        std::optional<Location> pickup_location;
-        if (has_pickup_location_index) {
-          // Custom provided matrices and index.
-          if (has_pickup_location_coords) {
-            pickup_location =
-              Location({pickup_location_index, pickup_location_coordinates});
-          } else {
-            pickup_location = Location(pickup_location_index);
-          }
-        } else {
-          if (has_pickup_location_coords) {
-            pickup_location = Location(pickup_location_coordinates);
-          }
-        }
+        std::optional<Location> delivery_location = get_location(delivery_location_coordinates, delivery_location_index);
+        std::optional<Location> pickup_location = get_location(pickup_location_coordinates, pickup_location_index);;
 
         Job pickup(pickup_id,
                    JOB_TYPE::PICKUP,

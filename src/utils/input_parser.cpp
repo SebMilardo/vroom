@@ -7,6 +7,9 @@ All rights reserved (see LICENSE).
 
 */
 
+#define NDEBUG
+#define SIMDJSON_DEVELOPMENT_CHECKS 0 
+
 #include <algorithm>
 
 #include "../include/simdjson/singleheader/simdjson.h"
@@ -15,21 +18,16 @@ All rights reserved (see LICENSE).
 
 namespace vroom::io {
 
-inline std::optional<simdjson::ondemand::value>
-HasMember(simdjson::ondemand::object object, const char* key) {
-  try {
-    return object[key];
-  } catch (const std::exception& e) {
-    return std::nullopt;
-  }
-}
-
 // Helper to get optional array of coordinates.
 inline Coordinates parse_coordinates(simdjson::ondemand::value object,
                                      const char* key) {
+  double coords[2];
+  size_t i = 0;  
   try {
-    simdjson::ondemand::array array = object.get_array();
-    return {array.at(0).get_double(), array.at(1).get_double()};
+    for (double elem : object.get_array()){
+      coords[i++] = elem;
+    }
+    return {coords[0], coords[1]};
   } catch (const std::exception& e) {
     throw InputException("Invalid " + std::string(key) + " array.");
   }
@@ -62,22 +60,19 @@ inline Amount get_amount(simdjson::ondemand::value json_value,
                          unsigned amount_size) {
   // Default to zero amount with provided size.
   Amount amount(amount_size);
+  size_t i = 0;
   try {
-    simdjson::ondemand::array array = json_value.get_array();
-    uint array_size = array.count_elements();
-    if (array_size != amount_size) {
-      throw InputException(std::format("Inconsistent {} length: {} and {}.",
-                                       key,
-                                       array_size,
-                                       amount_size));
-    }
-
-    for (uint i = 0; i < array_size; ++i) {
-      try {
-        amount[i] = array.at(i).get_uint64();
-      } catch (const std::exception& e) {
-        throw InputException("Invalid " + std::string(key) + " value.");
+    for (uint64_t element : json_value.get_array()) {
+      amount[i++] = element;
+      if (i > amount_size) {
+        break;
       }
+    }
+    if (i != amount_size){
+            throw InputException(std::format("Inconsistent {} length: {} and {}.",
+                                       key,
+                                       i,
+                                       amount_size));
     }
   } catch (const std::exception& e) {
     throw InputException("Invalid " + std::string(key) + " array.");
@@ -88,11 +83,9 @@ inline Amount get_amount(simdjson::ondemand::value json_value,
 inline Skills get_skills(simdjson::ondemand::value json_value) {
   Skills skills;
   try {
-    simdjson::ondemand::array array = json_value.get_array();
-
-    for (auto skill : array) {
+    for (uint64_t skill : json_value.get_array()) {
       try {
-        skills.insert(skill.get_uint64());
+        skills.insert(skill);
       } catch (const std::exception& e) {
         throw InputException("Invalid skill value.");
       }
@@ -137,23 +130,14 @@ inline std::optional<T> get_value_for(simdjson::ondemand::value json_value,
   return value;
 }
 
-inline void check_id(simdjson::ondemand::object v, const char* type) {
-  auto member = HasMember(v, "id");
-  if (member) {
-    try {
-      member.value().get_uint64();
-    } catch (const std::exception& e) {
-      throw InputException("Invalid id for " + std::string(type) + ".");
-    }
-  } else {
-    throw InputException("Missing id for " + std::string(type) + ".");
-  }
-}
-
 inline TimeWindow get_time_window(simdjson::ondemand::value tw) {
+  uint64_t window[2];
+  size_t i = 0;
   try {
-    simdjson::ondemand::array array = tw.get_array();
-    return {array.at(0).get_uint64(), array.at(1).get_uint64()};
+    for (double elem : tw.get_array()){
+      window[i++] = elem;
+    }
+    return {window[0], window[1]};
   } catch (const std::exception& e) {
     throw InputException("Invalid time-window.");
   }
@@ -206,16 +190,8 @@ inline Break get_break(simdjson::ondemand::object o, unsigned amount_size) {
 inline std::vector<Break> get_vehicle_breaks(simdjson::ondemand::object v,
                                              unsigned amount_size) {
   std::vector<Break> breaks;
-  auto has_breaks = HasMember(v, "breaks");
-  if (has_breaks) {
-    try {
-      for (auto b : has_breaks.value()) {
-        breaks.push_back(get_break(b, amount_size));
-      }
-    } catch (const std::exception& e) {
-      throw InputException(std::format("Invalid breaks for vehicle {}.",
-                                       v["id"].get_uint64().value()));
-    }
+  for (auto b : v) {
+    breaks.push_back(get_break(b.value().get_object(), amount_size));
   }
 
   std::ranges::sort(breaks, [](const auto& a, const auto& b) {
@@ -230,8 +206,6 @@ inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
                                                   uint64_t v_id) {
   std::vector<VehicleStep> steps;
   simdjson::ondemand::array array = v.get_array();
-
-  steps.reserve(array.count_elements());
 
   for (auto a : array) {
     std::optional<UserDuration> at;
@@ -288,8 +262,8 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
   uint64_t start_index;
   Coordinates end_coordinates;
   uint64_t end_index;
-  std::string profile;
-  Amount capacity((amount_size));
+  std::string profile = DEFAULT_PROFILE;
+  Amount capacity(amount_size);
   Skills skills;
   TimeWindow tw;
   std::vector<Break> breaks;
@@ -326,9 +300,6 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
       has_end_index = true;
     } else if (key == "profile") {
       profile = get_string(value, "profile");
-      if (profile.empty()) {
-        profile = DEFAULT_PROFILE;
-      }
     } else if (key == "capacity") {
       capacity = get_amount(value, "capacity", amount_size);
     } else if (key == "skills") {
@@ -336,7 +307,7 @@ inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
     } else if (key == "tw") {
       tw = get_time_window(value);
     } else if (key == "breaks") {
-      breaks = get_vehicle_breaks(json_vehicle, amount_size);
+      breaks = get_vehicle_breaks(value, amount_size);
     } else if (key == "description") {
       description = get_string(value, "description");
     } else if (key == "cost") {
@@ -419,8 +390,8 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
   uint64_t location_index;
   UserDuration setup = 0;
   UserDuration service = 0;
-  Amount delivery((amount_size));
-  Amount pickup((amount_size));
+  Amount delivery(amount_size);
+  Amount pickup(amount_size);
   Skills skills;
   Priority priority = 0;
   std::vector<TimeWindow> tws = std::vector<TimeWindow>(1, TimeWindow());
@@ -496,8 +467,9 @@ inline Matrix<T> get_matrix(simdjson::ondemand::array array) {
   size_t i = 0;
   size_t j = 0;
   for (simdjson::ondemand::array sub_array : array) {
-    for (auto element : sub_array) {
-      matrix[i][++j] = element.get_uint64();
+    j = 0;
+    for (uint64_t element : sub_array) {
+      matrix[i][j++] = element;
       if (j > matrix_size) {
         throw InputException("Unexpected matrix line length.");
       }
@@ -514,11 +486,18 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
   simdjson::ondemand::parser parser;
   simdjson::ondemand::document doc = parser.iterate(padded_input_str);
 
-  input.set_amount_size(1);
+  size_t amount_size = 0; 
+  simdjson::ondemand::array first_capacity;
+  auto error = doc.at_path(".vehicles[0].capacity").get(first_capacity);
+  if (!error)
+    amount_size = first_capacity.count_elements();
+  std::cout << "amount_size " << amount_size << std::endl;
+  doc.rewind();
+  input.set_amount_size(amount_size);
   input.set_geometry(geometry);
 
   simdjson::ondemand::object obj;
-  auto error = doc.get_object().get(obj);
+  error = doc.get_object().get(obj);
   if (error) {
     throw InputException("Error while parsing.");
   }
@@ -530,6 +509,7 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
     if (error) {
       throw InputException("Error while parsing.");
     }
+    std::cout << key << std::endl;
     if (key == "jobs") {
       simdjson::ondemand::array jobs;
       error = field.value().get_array().get(jobs);
@@ -537,17 +517,16 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         throw InputException("Error while parsing jobs.");
       }
       for (simdjson::ondemand::object job : jobs) {
-        input.add_job(get_job(job, 1));
+        input.add_job(get_job(job, amount_size));
       }
     } else if (key == "shipments") {
-      std::cout << "SHIPMENTS:" << std::endl;
       simdjson::ondemand::array shipments;
       error = field.value().get_array().get(shipments);
       if (error) {
         throw InputException("Error while parsing shipments.");
       }
       for (simdjson::ondemand::object shipment : shipments) {
-        Amount amount((1));
+        Amount amount(amount_size);
         Skills skills;
         Priority priority = 0;
 
@@ -626,7 +605,7 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
               }
             }
           } else if (key == "amount") {
-            amount = get_amount(value, "amount", 1);
+            amount = get_amount(value, "amount", amount_size);
           } else if (key == "skills") {
             skills = get_skills(value);
           } else if (key == "priority") {
@@ -695,33 +674,36 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         throw InputException("Error while parsing vehicles.");
       }
       for (simdjson::ondemand::object vehicle : vehicles) {
-        input.add_vehicle(get_vehicle(vehicle, 1));
+        input.add_vehicle(get_vehicle(vehicle, amount_size));
       }
     } else if (key == "matrices") {
-      simdjson::ondemand::object matrices;
-      error = field.value().get_object().get(matrices);
-      if (error) {
-        throw InputException("Error while parsing matrices.");
-      }
-      for (auto matrix : matrices) {
-        auto error = matrix.key().get(key);
-        if (error) {
-          throw InputException("Error while parsing matrixes.");
+      std::cout << "matrices" << std::endl;
+      for (auto profile : field.value().get_object()) {
+        auto profile_key = std::string(profile.escaped_key().value());
+        std::cout << profile_key << std::endl;
+        auto matrices = profile.value().get_object();
+        for (auto matrix : matrices) {
+          auto error = matrix.key().get(key);
+          if (error) {
+            throw InputException("Error while parsing matrixes.");
+          }
+          std::cout << key << std::endl;
+          if (key == "durations") {
+            input.set_durations_matrix(profile_key,
+                                      get_matrix<UserDuration>(
+                                        matrix.value().get_array()));
+          } else if (key == "distances") {
+            input.set_distances_matrix(profile_key,
+                                      get_matrix<UserDistance>(
+                                        matrix.value().get_array()));
+          } else if (key == "costs") {
+            input.set_costs_matrix(profile_key,
+                                  get_matrix<UserCost>(
+                                    matrix.value().get_array()));
+          }
         }
-        if (key == "durations") {
-          input.set_durations_matrix("durations",
-                                     get_matrix<UserDuration>(
-                                       matrix.value().get_array()));
-        } else if (key == "distances") {
-          input.set_distances_matrix("distance",
-                                     get_matrix<UserDistance>(
-                                       matrix.value().get_array()));
-        } else if (key == "costs") {
-          input.set_costs_matrix("costs",
-                                 get_matrix<UserCost>(
-                                   matrix.value().get_array()));
-        }
       }
+
     } else if (key == "matrix") {
       // Deprecated `matrix` key still interpreted as
       // `matrices.DEFAULT_PROFILE.duration` for retro-compatibility.
@@ -735,7 +717,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
                                  array));
     }
   }
-  exit(0);
 }
 
 } // namespace vroom::io

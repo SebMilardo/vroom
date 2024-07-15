@@ -8,7 +8,7 @@ All rights reserved (see LICENSE).
 */
 
 #define NDEBUG
-#define SIMDJSON_DEVELOPMENT_CHECKS 0 
+#define SIMDJSON_DEVELOPMENT_CHECKS 0
 
 #include <algorithm>
 
@@ -22,9 +22,9 @@ namespace vroom::io {
 inline Coordinates parse_coordinates(simdjson::ondemand::value object,
                                      const char* key) {
   double coords[2];
-  size_t i = 0;  
+  size_t i = 0;
   try {
-    for (double elem : object.get_array()){
+    for (double elem : object.get_array()) {
       coords[i++] = elem;
     }
     return {coords[0], coords[1]};
@@ -68,11 +68,9 @@ inline Amount get_amount(simdjson::ondemand::value json_value,
         break;
       }
     }
-    if (i != amount_size){
-            throw InputException(std::format("Inconsistent {} length: {} and {}.",
-                                       key,
-                                       i,
-                                       amount_size));
+    if (i != amount_size) {
+      throw InputException(
+        std::format("Inconsistent {} length: {} and {}.", key, i, amount_size));
     }
   } catch (const std::exception& e) {
     throw InputException("Invalid " + std::string(key) + " array.");
@@ -131,10 +129,10 @@ inline std::optional<T> get_value_for(simdjson::ondemand::value json_value,
 }
 
 inline TimeWindow get_time_window(simdjson::ondemand::value tw) {
-  uint64_t window[2];
+  UserDuration window[2];
   size_t i = 0;
   try {
-    for (double elem : tw.get_array()){
+    for (uint64_t elem : tw.get_array()) {
       window[i++] = elem;
     }
     return {window[0], window[1]};
@@ -162,9 +160,9 @@ inline std::vector<TimeWindow> get_time_windows(simdjson::ondemand::value o) {
 
 inline Break get_break(simdjson::ondemand::object o, unsigned amount_size) {
   std::optional<Amount> max_load;
-  uint64_t b_id;
+  std::optional<Id> b_id;
   std::vector<TimeWindow> tws;
-  UserDuration service;
+  UserDuration service = 0;
   std::string description;
 
   for (auto member : o) {
@@ -183,8 +181,11 @@ inline Break get_break(simdjson::ondemand::object o, unsigned amount_size) {
       description = get_string(value, "description");
     }
   }
-
-  return Break(b_id, tws, service, description, max_load);
+  if (b_id) {
+    return Break(b_id.value(), tws, service, description, max_load);
+  } else {
+    throw InputException("Invalid or missing id for break.");
+  }
 }
 
 inline std::vector<Break> get_vehicle_breaks(simdjson::ondemand::object v,
@@ -203,7 +204,7 @@ inline std::vector<Break> get_vehicle_breaks(simdjson::ondemand::object v,
 }
 
 inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
-                                                  uint64_t v_id) {
+                                                  Id v_id) {
   std::vector<VehicleStep> steps;
   simdjson::ondemand::array array = v.get_array();
 
@@ -212,7 +213,7 @@ inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
     std::optional<UserDuration> after;
     std::optional<UserDuration> before;
     std::string type_str;
-    uint64_t s_id;
+    std::optional<Id> s_id;
 
     auto step = a.get_object();
     for (auto member : step) {
@@ -233,30 +234,38 @@ inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
     }
 
     ForcedService forced_service(at, after, before);
-
     if (type_str == "start") {
       steps.emplace_back(STEP_TYPE::START, std::move(forced_service));
+      continue;
     } else if (type_str == "end") {
       steps.emplace_back(STEP_TYPE::END, std::move(forced_service));
-    } else if (type_str == "job") {
-      steps.emplace_back(JOB_TYPE::SINGLE, s_id, std::move(forced_service));
-    } else if (type_str == "pickup") {
-      steps.emplace_back(JOB_TYPE::PICKUP, s_id, std::move(forced_service));
-    } else if (type_str == "delivery") {
-      steps.emplace_back(JOB_TYPE::DELIVERY, s_id, std::move(forced_service));
-    } else if (type_str == "break") {
-      steps.emplace_back(STEP_TYPE::BREAK, s_id, std::move(forced_service));
+      continue;
+    }
+
+    if (s_id) {
+      if (type_str == "job") {
+        steps.emplace_back(JOB_TYPE::SINGLE, s_id.value(), std::move(forced_service));
+      } else if (type_str == "pickup") {
+        steps.emplace_back(JOB_TYPE::PICKUP, s_id.value(), std::move(forced_service));
+      } else if (type_str == "delivery") {
+        steps.emplace_back(JOB_TYPE::DELIVERY, s_id.value(), std::move(forced_service));
+      } else if (type_str == "break") {
+        steps.emplace_back(STEP_TYPE::BREAK, s_id.value(), std::move(forced_service));
+      } else {
+        throw InputException(
+          std::format("Invalid type in steps for vehicle {}.", v_id));
+      }
     } else {
-      throw InputException(
-        std::format("Invalid type in steps for vehicle {}.", v_id));
+      throw InputException(std::format("Invalid id in steps for vehicle {}.", v_id));
     }
   }
 
   return steps;
 }
 
-inline std::optional<Location> get_location(const std::optional<Coordinates>& coordinates,
-                                            const std::optional<uint64_t>& index) {
+inline std::optional<Location>
+get_location(const std::optional<Coordinates>& coordinates,
+             const std::optional<Index>& index) {
   std::optional<Location> location;
   if (index) {
     // Custom provided matrices and index.
@@ -273,14 +282,13 @@ inline std::optional<Location> get_location(const std::optional<Coordinates>& co
   return location;
 }
 
-
 inline Vehicle get_vehicle(simdjson::ondemand::object json_vehicle,
                            unsigned amount_size) {
-  uint64_t v_id;
+  Id v_id;
   std::optional<Coordinates> start_coordinates;
-  std::optional<uint64_t> start_index;
+  std::optional<Index> start_index;
   std::optional<Coordinates> end_coordinates;
-  std::optional<uint64_t> end_index;
+  std::optional<Index> end_index;
   std::string profile = DEFAULT_PROFILE;
   Amount capacity(amount_size);
   Skills skills;
@@ -371,9 +379,9 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
   // are defined and (deprecated) amount key is present, it should be
   // interpreted as a delivery.
 
-  uint64_t v_id;
+  std::optional<Id> j_id;
   std::optional<Coordinates> location_coordinates;
-  std::optional<uint64_t> location_index;
+  std::optional<Index> location_index;
   UserDuration setup = 0;
   UserDuration service = 0;
   Amount delivery(amount_size);
@@ -382,13 +390,13 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
   Priority priority = 0;
   std::vector<TimeWindow> tws = std::vector<TimeWindow>(1, TimeWindow());
   std::string description;
-  
+
   for (auto member : json_job) {
     auto key = member.key().value();
     auto value = member.value().value();
 
     if (key == "id") {
-      v_id = member.value().get_uint64();
+      j_id = member.value().get_uint64();
     } else if (key == "location_index") {
       location_index = member.value().get_uint64();
     } else if (key == "location") {
@@ -414,18 +422,23 @@ inline Job get_job(simdjson::ondemand::object json_job, unsigned amount_size) {
     }
   }
 
-  std::optional<Location> location = get_location(location_coordinates, location_index);
+  std::optional<Location> location =
+    get_location(location_coordinates, location_index);
 
-  return Job(v_id,
-             location.value(),
-             setup,
-             service,
-             delivery,
-             pickup,
-             skills,
-             priority,
-             tws,
-             description);
+  if (j_id) {
+    return Job(j_id.value(),
+               location.value(),
+               setup,
+               service,
+               delivery,
+               pickup,
+               skills,
+               priority,
+               tws,
+               description);
+  } else {
+    throw InputException("Invalid or missing id for job.");
+  }
 }
 
 template <class T>
@@ -456,7 +469,7 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
   simdjson::ondemand::parser parser;
   simdjson::ondemand::document doc = parser.iterate(padded_input_str);
 
-  size_t amount_size = 0; 
+  size_t amount_size = 0;
   simdjson::ondemand::array first_capacity;
   auto error = doc.at_path(".vehicles[0].capacity").get(first_capacity);
   if (!error)
@@ -500,18 +513,18 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         Skills skills;
         Priority priority = 0;
 
-        uint64_t pickup_id;
+        std::optional<Id> pickup_id;
         std::optional<Coordinates> pickup_location_coordinates;
-        std::optional<uint64_t> pickup_location_index;
+        std::optional<Index> pickup_location_index;
         UserDuration pickup_setup = 0;
         UserDuration pickup_service = 0;
         std::vector<TimeWindow> pickup_tws =
           std::vector<TimeWindow>(1, TimeWindow());
         std::string pickup_description;
 
-        uint64_t delivery_id;
+        std::optional<Id> delivery_id;
         std::optional<Coordinates> delivery_location_coordinates;
-        std::optional<uint64_t> delivery_location_index;
+        std::optional<Index> delivery_location_index;
         UserDuration delivery_setup = 0;
         UserDuration delivery_service = 0;
         std::vector<TimeWindow> delivery_tws =
@@ -575,10 +588,18 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           }
         }
 
-        std::optional<Location> delivery_location = get_location(delivery_location_coordinates, delivery_location_index);
-        std::optional<Location> pickup_location = get_location(pickup_location_coordinates, pickup_location_index);;
+        std::optional<Location> delivery_location =
+          get_location(delivery_location_coordinates, delivery_location_index);
+        std::optional<Location> pickup_location =
+          get_location(pickup_location_coordinates, pickup_location_index);
+        ;
 
-        Job pickup(pickup_id,
+        if (!pickup_id)
+          throw InputException("Invalid or missing id for pickup.");
+        if (!delivery_id)
+          throw InputException("Invalid or missing id for delivery.");
+
+        Job pickup(pickup_id.value(),
                    JOB_TYPE::PICKUP,
                    pickup_location.value(),
                    pickup_setup,
@@ -589,7 +610,7 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
                    pickup_tws,
                    pickup_description);
 
-        Job delivery(delivery_id,
+        Job delivery(delivery_id.value(),
                      JOB_TYPE::DELIVERY,
                      delivery_location.value(),
                      delivery_setup,
@@ -625,16 +646,16 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           std::cout << key << std::endl;
           if (key == "durations") {
             input.set_durations_matrix(profile_key,
-                                      get_matrix<UserDuration>(
-                                        matrix.value().get_array()));
+                                       get_matrix<UserDuration>(
+                                         matrix.value().get_array()));
           } else if (key == "distances") {
             input.set_distances_matrix(profile_key,
-                                      get_matrix<UserDistance>(
-                                        matrix.value().get_array()));
+                                       get_matrix<UserDistance>(
+                                         matrix.value().get_array()));
           } else if (key == "costs") {
             input.set_costs_matrix(profile_key,
-                                  get_matrix<UserCost>(
-                                    matrix.value().get_array()));
+                                   get_matrix<UserCost>(
+                                     matrix.value().get_array()));
           }
         }
       }
@@ -648,8 +669,7 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         throw InputException("Error while parsing matrix.");
       }
       input.set_durations_matrix(DEFAULT_PROFILE,
-                                 get_matrix<UserDuration>(
-                                 array));
+                                 get_matrix<UserDuration>(array));
     }
   }
 }

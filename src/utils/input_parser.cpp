@@ -244,19 +244,28 @@ inline std::vector<VehicleStep> get_vehicle_steps(simdjson::ondemand::value v,
 
     if (s_id) {
       if (type_str == "job") {
-        steps.emplace_back(JOB_TYPE::SINGLE, s_id.value(), std::move(forced_service));
+        steps.emplace_back(JOB_TYPE::SINGLE,
+                           s_id.value(),
+                           std::move(forced_service));
       } else if (type_str == "pickup") {
-        steps.emplace_back(JOB_TYPE::PICKUP, s_id.value(), std::move(forced_service));
+        steps.emplace_back(JOB_TYPE::PICKUP,
+                           s_id.value(),
+                           std::move(forced_service));
       } else if (type_str == "delivery") {
-        steps.emplace_back(JOB_TYPE::DELIVERY, s_id.value(), std::move(forced_service));
+        steps.emplace_back(JOB_TYPE::DELIVERY,
+                           s_id.value(),
+                           std::move(forced_service));
       } else if (type_str == "break") {
-        steps.emplace_back(STEP_TYPE::BREAK, s_id.value(), std::move(forced_service));
+        steps.emplace_back(STEP_TYPE::BREAK,
+                           s_id.value(),
+                           std::move(forced_service));
       } else {
         throw InputException(
           std::format("Invalid type in steps for vehicle {}.", v_id));
       }
     } else {
-      throw InputException(std::format("Invalid id in steps for vehicle {}.", v_id));
+      throw InputException(
+        std::format("Invalid id in steps for vehicle {}.", v_id));
     }
   }
 
@@ -590,7 +599,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
           get_location(delivery_location_coordinates, delivery_location_index);
         std::optional<Location> pickup_location =
           get_location(pickup_location_coordinates, pickup_location_index);
-        ;
 
         if (!pickup_id)
           throw InputException("Invalid or missing id for pickup.");

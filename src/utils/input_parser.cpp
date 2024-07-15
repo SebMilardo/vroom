@@ -474,7 +474,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
   auto error = doc.at_path(".vehicles[0].capacity").get(first_capacity);
   if (!error)
     amount_size = first_capacity.count_elements();
-  std::cout << "amount_size " << amount_size << std::endl;
   doc.rewind();
   input.set_amount_size(amount_size);
   input.set_geometry(geometry);
@@ -492,7 +491,6 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
     if (error) {
       throw InputException("Error while parsing.");
     }
-    std::cout << key << std::endl;
     if (key == "jobs") {
       simdjson::ondemand::array jobs;
       error = field.value().get_array().get(jobs);
@@ -633,17 +631,14 @@ void parse(Input& input, const std::string& input_str, bool geometry) {
         input.add_vehicle(get_vehicle(vehicle, amount_size));
       }
     } else if (key == "matrices") {
-      std::cout << "matrices" << std::endl;
       for (auto profile : field.value().get_object()) {
         auto profile_key = std::string(profile.escaped_key().value());
-        std::cout << profile_key << std::endl;
         auto matrices = profile.value().get_object();
         for (auto matrix : matrices) {
           auto error = matrix.key().get(key);
           if (error) {
             throw InputException("Error while parsing matrixes.");
           }
-          std::cout << key << std::endl;
           if (key == "durations") {
             input.set_durations_matrix(profile_key,
                                        get_matrix<UserDuration>(

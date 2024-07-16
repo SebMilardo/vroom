@@ -149,7 +149,7 @@ UserDistance ValhallaWrapper::get_distance_value(
 unsigned
 ValhallaWrapper::get_legs_number(simdjson::ondemand::value result) const {
   simdjson::ondemand::array array = result["trip"]["legs"].get_array();
-  return array.count_elements()
+  return array.count_elements();
 }
 
 std::string ValhallaWrapper::get_geometry(simdjson::ondemand::value result) const {
@@ -164,12 +164,13 @@ std::string ValhallaWrapper::get_geometry(simdjson::ondemand::value result) cons
 
   auto full_polyline =
     gepaf::PolylineEncoder<valhalla_polyline_precision>::decode(
-      result["trip"]["legs"][0]["shape"].get_string().value());
+      std::string(result["trip"]["legs"][0]["shape"].get_string().value()));
 
-  for (size_t i = 1; i < result["trip"]["legs"].Size(); ++i) {
+  simdjson::ondemand::array array = result.at_path(".trip.legs").get_array();
+  for (size_t i = 1; i < array.count_elements(); ++i) {
     auto decoded_pts =
       gepaf::PolylineEncoder<valhalla_polyline_precision>::decode(
-        result["trip"]["legs"][i]["shape"].get_string());
+        std::string(result["trip"]["legs"].at(i)["shape"].get_string().value()));
 
     if (!full_polyline.empty()) {
       full_polyline.pop_back();

@@ -93,9 +93,9 @@ void ValhallaWrapper::check_response(simdjson::ondemand::value json_result,
   assert(service == _matrix_service || service == _route_service);
 
   if (constexpr unsigned HTTP_OK = 200;
-      json_result.HasMember("status_code") &&
-      json_result["status_code"].IsUint() &&
-      json_result["status_code"].GetUint() != HTTP_OK) {
+      json_result.find_field_unordered("status_code") &&
+      json_result["status_code"].is_integer() &&
+      json_result["status_code"].get_uint64() != HTTP_OK) {
     // Valhalla responses seem to only have a status_code key when a
     // problem is encountered. In that case it's not really clear what
     // keys can be expected so we're playing guesses. This happens
@@ -104,51 +104,52 @@ void ValhallaWrapper::check_response(simdjson::ondemand::value json_result,
     std::string service_str = (service == _route_service) ? "route" : "matrix";
     std::string error = "Valhalla " + service_str + " error (";
 
-    if (json_result.HasMember("error") && json_result["error"].IsString()) {
-      error += json_result["error"].GetString();
+    if (json_result.find_field_unordered("error") && json_result["error"].is_string()) {
+      error += std::string(json_result["error"].get_string().value());
       error += ").";
     }
     throw RoutingException(error);
   }
 
   if (service == _route_service) {
-    assert(json_result.HasMember("trip") &&
-           json_result["trip"].HasMember("status"));
-    if (json_result["trip"]["status"] != 0) {
+    assert(json_result.find_field_unordered("trip") &&
+           json_result["trip"].find_field_unordered("status"));
+    if (json_result["trip"]["status"].get_int64() != 0) {
       throw RoutingException(
-        std::string(json_result["trip"]["status_message"].GetString()));
+        std::string(json_result["trip"]["status_message"].get_string().value()));
     }
   }
 }
 
 bool ValhallaWrapper::duration_value_is_null(
   simdjson::ondemand::value matrix_entry) const {
-  assert(matrix_entry.HasMember("time"));
+  assert(matrix_entry.find_field_unordered("time"));
   return matrix_entry["time"].is_null();
 }
 
 bool ValhallaWrapper::distance_value_is_null(
   simdjson::ondemand::value matrix_entry) const {
-  assert(matrix_entry.HasMember("distance"));
+  assert(matrix_entry.find_field_unordered("distance"));
   return matrix_entry["distance"].is_null();
 }
 
 UserDuration ValhallaWrapper::get_duration_value(
   simdjson::ondemand::value matrix_entry) const {
-  assert(matrix_entry["time"].IsUint());
+  assert(matrix_entry["time"].is_integer());
   return matrix_entry["time"].get_uint64();
 }
 
 UserDistance ValhallaWrapper::get_distance_value(
   simdjson::ondemand::value matrix_entry) const {
-  assert(matrix_entry["distance"].IsDouble());
+  assert(matrix_entry["distance"].is_scalar());
   return utils::round<UserDistance>(km_to_m *
                                     matrix_entry["distance"].get_double());
 }
 
 unsigned
 ValhallaWrapper::get_legs_number(simdjson::ondemand::value result) const {
-  return result["trip"]["legs"].Size();
+  simdjson::ondemand::array array = result["trip"]["legs"].get_array();
+  return array.count_elements()
 }
 
 std::string ValhallaWrapper::get_geometry(simdjson::ondemand::value result) const {
@@ -163,12 +164,12 @@ std::string ValhallaWrapper::get_geometry(simdjson::ondemand::value result) cons
 
   auto full_polyline =
     gepaf::PolylineEncoder<valhalla_polyline_precision>::decode(
-      result["trip"]["legs"][0]["shape"].GetString());
+      result["trip"]["legs"][0]["shape"].get_string().value());
 
-  for (rapidjson::SizeType i = 1; i < result["trip"]["legs"].Size(); ++i) {
+  for (size_t i = 1; i < result["trip"]["legs"].Size(); ++i) {
     auto decoded_pts =
       gepaf::PolylineEncoder<valhalla_polyline_precision>::decode(
-        result["trip"]["legs"][i]["shape"].GetString());
+        result["trip"]["legs"][i]["shape"].get_string());
 
     if (!full_polyline.empty()) {
       full_polyline.pop_back();

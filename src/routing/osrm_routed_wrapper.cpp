@@ -65,10 +65,12 @@ OsrmRoutedWrapper::build_query(const std::vector<Location>& locations,
 void OsrmRoutedWrapper::check_response(simdjson::ondemand::value json_result,
                                        const std::vector<Location>& locs,
                                        const std::string&) const {
-  assert(json_result.HasMember("code"));
-  const std::string code = json_result["code"].GetString();
+  assert(json_result.find_field_unordered("code"));
+  std::string code;
+  json_result["code"].get_string(code);
   if (code != "Ok") {
-    const std::string message = json_result["message"].GetString();
+    std::string message;
+    json_result["message"].get_string(message);
     if (const std::string snapping_error_base =
           "Could not find a matching segment for coordinate ";
         code == "NoSegment" && message.starts_with(snapping_error_base)) {
@@ -108,11 +110,14 @@ UserDistance OsrmRoutedWrapper::get_distance_value(
 
 unsigned
 OsrmRoutedWrapper::get_legs_number(simdjson::ondemand::value result) const {
-  return result["routes"][0]["legs"].Size();
+  simdjson::ondemand::array array = result["routes"][0]["legs"].get_array();
+  return array.count_elements();
 }
 
 std::string OsrmRoutedWrapper::get_geometry(simdjson::ondemand::value result) const {
-  return result["routes"][0]["geometry"].GetString();
+  std::string geometry;
+  result["routes"][0]["geometry"].get_string(geometry);
+  return geometry;
 }
 
 } // namespace vroom::routing

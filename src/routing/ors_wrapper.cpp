@@ -63,9 +63,9 @@ std::string OrsWrapper::build_query(const std::vector<Location>& locations,
 void OrsWrapper::check_response(simdjson::ondemand::value json_result,
                                 const std::vector<Location>&,
                                 const std::string&) const {
-  if (json_result.HasMember("error")) {
+  if (json_result.find_field_unordered("error")) {
     throw RoutingException(
-      std::string(json_result["error"]["message"].GetString()));
+      std::string(json_result.at_path("error.message").get_string().value()));
   }
 }
 

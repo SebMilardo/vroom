@@ -9,7 +9,7 @@ Copyright (c) 2015-2024, Julien Coupey.
 All rights reserved (see LICENSE).
 
 */
-#include "../include/rapidjson/include/rapidjson/document.h"
+#include "../include/simdjson/singleheader/simdjson.h"
 
 #include "routing/wrapper.h"
 #include "structures/typedefs.h"
@@ -42,33 +42,33 @@ protected:
 
   std::string run_query(const std::string& query) const;
 
-  static void parse_response(rapidjson::Document& json_result,
+  static void parse_response(simdjson::ondemand::document& json_result,
                              const std::string& json_content);
 
   virtual std::string build_query(const std::vector<Location>& locations,
                                   const std::string& service) const = 0;
 
-  virtual void check_response(const rapidjson::Document& json_result,
+  virtual void check_response(simdjson::ondemand::value json_result,
                               const std::vector<Location>& locs,
                               const std::string& service) const = 0;
 
   Matrices get_matrices(const std::vector<Location>& locs) const override;
 
   virtual bool
-  duration_value_is_null(const rapidjson::Value& matrix_entry) const = 0;
+  duration_value_is_null(simdjson::ondemand::value matrix_entry) const = 0;
 
   virtual bool
-  distance_value_is_null(const rapidjson::Value& matrix_entry) const = 0;
+  distance_value_is_null(simdjson::ondemand::value matrix_entry) const = 0;
 
   virtual UserDuration
-  get_duration_value(const rapidjson::Value& matrix_entry) const = 0;
+  get_duration_value(simdjson::ondemand::value matrix_entry) const = 0;
 
   virtual UserDistance
-  get_distance_value(const rapidjson::Value& matrix_entry) const = 0;
+  get_distance_value(simdjson::ondemand::value matrix_entry) const = 0;
 
-  virtual unsigned get_legs_number(const rapidjson::Value& result) const = 0;
+  virtual unsigned get_legs_number(simdjson::ondemand::value result) const = 0;
 
-  virtual std::string get_geometry(rapidjson::Value& result) const = 0;
+  virtual std::string get_geometry(simdjson::ondemand::value result) const = 0;
 
   void add_geometry(Route& route) const override;
 };

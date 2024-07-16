@@ -139,12 +139,17 @@ std::string HttpWrapper::run_query(const std::string& query) const {
                                       : send_then_receive(query);
 }
 
-void HttpWrapper::parse_response(rapidjson::Document& json_result,
+void HttpWrapper::parse_response(simdjson::ondemand::document& json_result,
                                  const std::string& json_content) {
+
 #ifdef NDEBUG
-  json_result.Parse(json_content.c_str());
+  simdjson::padded_string padded_input_str(json_content);
+  simdjson::ondemand::parser parser;
+  json_result = parser.iterate(padded_input_str);
 #else
-  assert(!json_result.Parse(json_content.c_str()).HasParseError());
+  simdjson::padded_string padded_input_str(json_content);
+  simdjson::ondemand::parser parser;
+  json_result = parser.iterate(padded_input_str);
 #endif
 }
 
@@ -155,49 +160,67 @@ Matrices HttpWrapper::get_matrices(const std::vector<Location>& locs) const {
   // Expected matrix size.
   std::size_t m_size = locs.size();
 
-  rapidjson::Document json_result;
+  simdjson::ondemand::document json_result;
   this->parse_response(json_result, json_string);
   this->check_response(json_result, locs, _matrix_service);
 
-  if (!json_result.HasMember(_matrix_durations_key.c_str())) {
-    throw RoutingException("Missing " + _matrix_durations_key + ".");
-  }
-  assert(json_result[_matrix_durations_key.c_str()].Size() == m_size);
+  std::optional<simdjson::ondemand::array> durations_matrix;
+  std::optional<simdjson::ondemand::array> distances_matrix;
 
-  if (!json_result.HasMember(_matrix_distances_key.c_str())) {
-    throw RoutingException("Missing " + _matrix_distances_key + ".");
-  }
-  assert(json_result[_matrix_distances_key.c_str()].Size() == m_size);
+  std::vector<unsigned> nb_unfound_from_loc(m_size, 0);
+  std::vector<unsigned> nb_unfound_to_loc(m_size, 0);
 
   // Build matrices while checking for unfound routes ('null' values)
   // to avoid unexpected behavior.
   Matrices m(m_size);
 
-  std::vector<unsigned> nb_unfound_from_loc(m_size, 0);
-  std::vector<unsigned> nb_unfound_to_loc(m_size, 0);
-
-  for (rapidjson::SizeType i = 0; i < m_size; ++i) {
-    const auto& duration_line = json_result[_matrix_durations_key.c_str()][i];
-    const auto& distance_line = json_result[_matrix_distances_key.c_str()][i];
-    assert(duration_line.Size() == m_size);
-    assert(distance_line.Size() == m_size);
-    for (rapidjson::SizeType j = 0; j < m_size; ++j) {
-      if (duration_value_is_null(duration_line[j]) ||
-          distance_value_is_null(distance_line[j])) {
-        // No route found between i and j. Just storing info as we
-        // don't know yet which location is responsible between i
-        // and j.
-        ++nb_unfound_from_loc[i];
-        ++nb_unfound_to_loc[j];
-      } else {
-        m.durations[i][j] = get_duration_value(duration_line[j]);
-        m.distances[i][j] = get_distance_value(distance_line[j]);
+  for (auto field : json_result.get_object()){
+    if (field.key() == _matrix_durations_key){
+      durations_matrix = field.value().get_array();
+      size_t i = 0;
+      for (simdjson::ondemand::array line : durations_matrix.value()){
+        size_t j = 0;
+        for (simdjson::ondemand::value value : line){
+          if (duration_value_is_null(value)){
+            ++nb_unfound_from_loc[i];
+            ++nb_unfound_to_loc[j];        
+          } else {
+            m.durations[i][j] = get_duration_value(value);
+          }
+          ++j;
+        }
+        assert(j == m_size);
+        ++i;
       }
+      assert(i == m_size);
+    } else if (field.key() == _matrix_distances_key){
+      distances_matrix = field.value().get_array();
+      size_t i = 0;
+      for (simdjson::ondemand::array line : distances_matrix.value()){
+        size_t j = 0;
+        for (simdjson::ondemand::value value : line){
+          if (distance_value_is_null(value)){
+            ++nb_unfound_from_loc[i];
+            ++nb_unfound_to_loc[j];        
+          } else {
+            m.distances[i][j] = get_distance_value(value);
+          }
+          ++j;
+        }
+        assert(j == m_size);
+        ++i;
+      }
+      assert(i == m_size);
     }
+  }
+  if (!durations_matrix) {
+    throw RoutingException("Missing " + _matrix_durations_key + ".");
+  }
+  if (!distances_matrix) {
+    throw RoutingException("Missing " + _matrix_distances_key + ".");
   }
 
   check_unfound(locs, nb_unfound_from_loc, nb_unfound_to_loc);
-
   return m;
 }
 
@@ -219,7 +242,7 @@ void HttpWrapper::add_geometry(Route& route) const {
 
   std::string json_string = this->run_query(query);
 
-  rapidjson::Document json_result;
+  simdjson::ondemand::document json_result;
   parse_response(json_result, json_string);
   this->check_response(json_result,
                        non_break_locations, // not supposed to be used

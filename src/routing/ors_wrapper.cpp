@@ -60,7 +60,7 @@ std::string OrsWrapper::build_query(const std::vector<Location>& locations,
   return query;
 }
 
-void OrsWrapper::check_response(const rapidjson::Document& json_result,
+void OrsWrapper::check_response(simdjson::ondemand::value json_result,
                                 const std::vector<Location>&,
                                 const std::string&) const {
   if (json_result.HasMember("error")) {
@@ -70,31 +70,32 @@ void OrsWrapper::check_response(const rapidjson::Document& json_result,
 }
 
 bool OrsWrapper::duration_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
-  return matrix_entry.IsNull();
+  simdjson::ondemand::value matrix_entry) const {
+  return matrix_entry.is_null();
 }
 
 bool OrsWrapper::distance_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
-  return matrix_entry.IsNull();
+  simdjson::ondemand::value matrix_entry) const {
+  return matrix_entry.is_null();
 }
 
 UserDuration
-OrsWrapper::get_duration_value(const rapidjson::Value& matrix_entry) const {
-  return utils::round<UserDuration>(matrix_entry.GetDouble());
+OrsWrapper::get_duration_value(simdjson::ondemand::value matrix_entry) const {
+  return utils::round<UserDuration>(matrix_entry.get_double());
 }
 
 UserDistance
-OrsWrapper::get_distance_value(const rapidjson::Value& matrix_entry) const {
-  return utils::round<UserDistance>(matrix_entry.GetDouble());
+OrsWrapper::get_distance_value(simdjson::ondemand::value matrix_entry) const {
+  return utils::round<UserDistance>(matrix_entry.get_double());
 }
 
-unsigned OrsWrapper::get_legs_number(const rapidjson::Value& result) const {
-  return result["routes"][0]["segments"].Size();
+unsigned OrsWrapper::get_legs_number(simdjson::ondemand::value result) const {
+  simdjson::ondemand::array array = result.at_path(".routes[0].segments").get_array();
+  return array.count_elements();
 }
 
-std::string OrsWrapper::get_geometry(rapidjson::Value& result) const {
-  return result["routes"][0]["geometry"].GetString();
+std::string OrsWrapper::get_geometry(simdjson::ondemand::value result) const {
+  return std::string(result.at_path(".routes[0].geometry").get_string().value());
 }
 
 } // namespace vroom::routing

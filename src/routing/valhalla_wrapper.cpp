@@ -87,7 +87,7 @@ std::string ValhallaWrapper::build_query(const std::vector<Location>& locations,
                                       : get_route_query(locations);
 }
 
-void ValhallaWrapper::check_response(const rapidjson::Document& json_result,
+void ValhallaWrapper::check_response(simdjson::ondemand::value json_result,
                                      const std::vector<Location>&,
                                      const std::string& service) const {
   assert(service == _matrix_service || service == _route_service);
@@ -122,36 +122,36 @@ void ValhallaWrapper::check_response(const rapidjson::Document& json_result,
 }
 
 bool ValhallaWrapper::duration_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
+  simdjson::ondemand::value matrix_entry) const {
   assert(matrix_entry.HasMember("time"));
-  return matrix_entry["time"].IsNull();
+  return matrix_entry["time"].is_null();
 }
 
 bool ValhallaWrapper::distance_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
+  simdjson::ondemand::value matrix_entry) const {
   assert(matrix_entry.HasMember("distance"));
-  return matrix_entry["distance"].IsNull();
+  return matrix_entry["distance"].is_null();
 }
 
 UserDuration ValhallaWrapper::get_duration_value(
-  const rapidjson::Value& matrix_entry) const {
+  simdjson::ondemand::value matrix_entry) const {
   assert(matrix_entry["time"].IsUint());
-  return matrix_entry["time"].GetUint();
+  return matrix_entry["time"].get_uint64();
 }
 
 UserDistance ValhallaWrapper::get_distance_value(
-  const rapidjson::Value& matrix_entry) const {
+  simdjson::ondemand::value matrix_entry) const {
   assert(matrix_entry["distance"].IsDouble());
   return utils::round<UserDistance>(km_to_m *
-                                    matrix_entry["distance"].GetDouble());
+                                    matrix_entry["distance"].get_double());
 }
 
 unsigned
-ValhallaWrapper::get_legs_number(const rapidjson::Value& result) const {
+ValhallaWrapper::get_legs_number(simdjson::ondemand::value result) const {
   return result["trip"]["legs"].Size();
 }
 
-std::string ValhallaWrapper::get_geometry(rapidjson::Value& result) const {
+std::string ValhallaWrapper::get_geometry(simdjson::ondemand::value result) const {
   // Valhalla returns one polyline per route leg so we need to merge
   // them. Also taking the opportunity to adjust the encoding
   // precision as Valhalla uses 6 and we use 5 based on other routing

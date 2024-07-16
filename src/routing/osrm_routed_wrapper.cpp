@@ -62,7 +62,7 @@ OsrmRoutedWrapper::build_query(const std::vector<Location>& locations,
   return query;
 }
 
-void OsrmRoutedWrapper::check_response(const rapidjson::Document& json_result,
+void OsrmRoutedWrapper::check_response(simdjson::ondemand::value json_result,
                                        const std::vector<Location>& locs,
                                        const std::string&) const {
   assert(json_result.HasMember("code"));
@@ -87,31 +87,31 @@ void OsrmRoutedWrapper::check_response(const rapidjson::Document& json_result,
 }
 
 bool OsrmRoutedWrapper::duration_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
-  return matrix_entry.IsNull();
+  simdjson::ondemand::value matrix_entry) const {
+  return matrix_entry.is_null();
 }
 
 bool OsrmRoutedWrapper::distance_value_is_null(
-  const rapidjson::Value& matrix_entry) const {
-  return matrix_entry.IsNull();
+  simdjson::ondemand::value matrix_entry) const {
+  return matrix_entry.is_null();
 }
 
 UserDuration OsrmRoutedWrapper::get_duration_value(
-  const rapidjson::Value& matrix_entry) const {
-  return utils::round<UserDuration>(matrix_entry.GetDouble());
+  simdjson::ondemand::value matrix_entry) const {
+  return utils::round<UserDuration>(matrix_entry.get_double());
 }
 
 UserDistance OsrmRoutedWrapper::get_distance_value(
-  const rapidjson::Value& matrix_entry) const {
-  return utils::round<UserDistance>(matrix_entry.GetDouble());
+  simdjson::ondemand::value matrix_entry) const {
+  return utils::round<UserDistance>(matrix_entry.get_double());
 }
 
 unsigned
-OsrmRoutedWrapper::get_legs_number(const rapidjson::Value& result) const {
+OsrmRoutedWrapper::get_legs_number(simdjson::ondemand::value result) const {
   return result["routes"][0]["legs"].Size();
 }
 
-std::string OsrmRoutedWrapper::get_geometry(rapidjson::Value& result) const {
+std::string OsrmRoutedWrapper::get_geometry(simdjson::ondemand::value result) const {
   return result["routes"][0]["geometry"].GetString();
 }
 

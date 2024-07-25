@@ -106,6 +106,21 @@ struct Vehicle {
     return cost_wrapper.duration(i, j);
   }
 
+  Duration shortest_duration(Index i, Index j) const {
+    // Start with the direct duration
+    Duration shortest_duration = cost_wrapper.duration(i, j); 
+
+    const size_t matrix_size = cost_wrapper.get_duration_matrix_size();
+    for (size_t k = 0; k < matrix_size; ++k){
+      Duration via_k_duration = cost_wrapper.duration(i, k) + cost_wrapper.duration(k, j); 
+      if (via_k_duration < shortest_duration) {
+        // Update to a shorter duration if found
+        shortest_duration = via_k_duration; 
+      }
+    }
+    return shortest_duration;
+  }
+
   Cost cost(Index i, Index j) const {
     return cost_wrapper.cost(i, j);
   }

@@ -54,6 +54,10 @@ public:
     return _cost_based_on_metrics;
   }
 
+  size_t get_duration_matrix_size() const {
+    return duration_matrix_size;
+  }
+
   bool has_same_variable_costs(const CostWrapper& other) const {
     return (this->discrete_duration_cost_factor ==
             other.discrete_duration_cost_factor) &&

@@ -111,12 +111,12 @@ PreviousInfo TWRoute::previous_info(const Input& input,
   if (rank > 0) {
     const auto& previous_job = input.jobs[route[rank - 1]];
     previous.earliest = earliest[rank - 1] + action_time[rank - 1];
-    previous.travel = v.duration(previous_job.index(), j.index());
+    previous.travel = v.shortest_duration(previous_job.index(), j.index());
     previous.location_index = previous_job.location.index();
   } else {
     if (has_start) {
       previous.location_index = v.start.value().index();
-      previous.travel = v.duration(previous.location_index, j.index());
+      previous.travel = v.shortest_duration(previous.location_index, j.index());
     }
   }
 
@@ -132,11 +132,11 @@ NextInfo TWRoute::next_info(const Input& input,
   NextInfo next(v_end, 0);
   if (rank == route.size()) {
     if (has_end) {
-      next.travel = v.duration(j.index(), v.end.value().index());
+      next.travel = v.shortest_duration(j.index(), v.end.value().index());
     }
   } else {
     next.latest = latest[rank];
-    next.travel = v.duration(j.index(), input.jobs[route[rank]].index());
+    next.travel = v.shortest_duration(j.index(), input.jobs[route[rank]].index());
   }
 
   return next;
